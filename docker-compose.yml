@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11444:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag-backend
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=http://localhost:11444
+      - CHROMA_DIR=/app/storage/chroma
+      - SQLITE_URL=sqlite:///./storage/app.db
+      - MODEL=recruiter-gemma3:270m
+      - EMBED_MODEL=nomic-embed-text
+    volumes:
+      - backend_data:/app/storage
+    ports:
+      - "7000:7000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rag-frontend
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_BASE=http://localhost:7000
+    ports:
+      - "5173:5173"
+
+volumes:
+  ollama_data:
+  backend_data:
